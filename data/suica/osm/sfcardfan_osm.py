@@ -43,17 +43,92 @@ RAPID_LINE = '線快速'
 
 ALT_NAMES = {
     '東海道本線': [  # Tokaido Main Line
+        # JR East
         'JR東北本線',        # JR Tohoku Main Line
         'JR京浜東北線',      # JR Keihin-Tohoku Line
         'JR湘南新宿ライン',  # JR Shonan-Shinjuku Line
-    ]
+
+        # JR West
+        'JR琵琶湖線',        # JR Biwako Line
+    ],
+
+    'いわて銀河': [
+        # Iwate Galaxy Railway Line
+        'アイジーアールいわて銀河鉄道いわて銀河鉄道線',
+    ],
+
+    '阿佐': [
+        # Tosa Kuroshio Railway Asa Line
+        '土佐くろしお鉄道阿佐線',
+    ],
+
+    '中村': [  # Nakamura
+        # Tosa Kuroshio Railway Nakamura Line
+        '土佐くろしお鉄道中村線',
+    ],
+
+    '鶴見': [  # Tsurumi
+        # Nagahori Tsurumi-Ryokuchi (Osaka)
+        '長堀鶴見緑地',
+        # Tsurumi Line (Tokyo)
+        'JR鶴見線',
+    ],
+
+    '江差': [  # Esashi (ex. JR Hokkaido)
+        # TODO: fix company name
+        # Dōnan Isaribi Tetsudō Line (South Hokkaido Railway)
+        '道南いさりび鉄道線',
+    ],
+
+    '会津': [ # Aizu
+        '会津鉄道会津線', # Aizu Railway Aizu Line
+    ],
+
+    '赤羽': [ # Akabane (station)
+        # Data error, station there is Jujo (which only has Saikyo line)
+        'JR埼京線',  # Saikyo line
+    ],
+
+    '真岡': [  # Mooka
+        '真岡鐵道真岡線', # Mooka Railway Mooka Line
+    ],
+
+    '天竜浜名湖': [
+        # Tenryu Hamanako Railroad
+        '天竜浜名湖鉄道天竜浜名湖線',
+    ],
+
+    # '鹿児島本線': [
+    #     'JR鹿児島本線',     # JR Kagoshima
+    # ],
+    # '鹿児島線': [
+    #     'JR鹿児島本線',     # JR Kagoshima Main Line
+    # ],
+    # '日豊本線': [   # Nippo main line
+    #     'JR日豊線',   # JR Nippo line
+    # ],
+    # '山陰本線': [   # Sanin Main Line
+    #     'JR山陰線',  # JR Sanin Line
+    # ],
+    # '紀勢本線': [  # Kisei main line
+    #     'JR紀勢線',  # JR Kisei line
+    # ],
+    #
+    # '石北本線': [  # Sekihoku main line
+    #     '石北線',  # Sekihoku line
+    # ],
+    # '根室本線': [  # Nemuro main line
+    #     '根室線',
+    # ],
 }
 
 # Characters that aren't important for testing
 JUNK_CHARS = '・'
 
 IGNORED_LINE_PREFIXES = (
-    'JR',)
+    'JR ',  # double-named items
+    'JR',
+)
 
 IGNORED_LINE_SUFFIXES = (
     MAIN_LINE,
@@ -67,6 +142,10 @@ IGNORED_LINE_SUFFIXES = (
 # If a SFCardFan record contains one of these words, then ignore it
 IGNORED_WORDS = (
     '試験',  # test
+    'Test',
+    '携帯端末',  # TODO: Mobile terminal
+    'Suica',     # TODO: Mobile/internet suica
+    '臨時窓口',  # TODO: temporary window
 
     # TODO: missing data in OSM:
     '天竜川',  # Tenryugawa
@@ -76,6 +155,20 @@ IGNORED_WORDS = (
     '名古屋',  # Nagoya
     '清洲',    # Kiyosu
     '岐阜',    # Gifu
+
+    'ふるさと銀河',  # Furusato Ginga Line (closed)
+)
+
+IGNORED_WORDS_EXACT = (
+    # TODO: Missing OSM data
+    '彦根',  # Hikone
+    '河瀬',  # Kawase
+    '津軽',  # Tsugaru line (missing data)
+    '海峡',  # Kaikyo line (missing data)
+    '東海交通事業',  # Tokai Transport Service Company (missing data)
+    '能登',  # Noto line (closed)
+    '宮島航路',  # Miyajima ferry
+
 )
 
 
@@ -92,13 +185,17 @@ def clean_sf_station(i: Text) -> Text:
 
 
 def clean_sf_line(i: Text) -> Text:
-    """Cleans up a SFCardFan line name to make it consistent."""
-    if i.endswith(HON):
-        # If it ends with "hon", replace with "hon sen"
-        i = i[:-len(HON)] + MAIN_LINE
+    """Cleans up a SFCardFan line name to make it consistent with OSM."""
     if not i.endswith(LINE):
         # TODO: can probably replace previous thing with this.
         i += LINE
+    for prefix in IGNORED_LINE_PREFIXES:
+        if i.startswith(prefix):
+            i = i[len(prefix):]
+
+    for suffix in IGNORED_LINE_SUFFIXES:
+        if i.endswith(suffix):
+            i = i[:-len(suffix)]
 
     for c in JUNK_CHARS:
         if c in i:
@@ -225,19 +322,23 @@ class OsmRelation:
         if alt_names and (self.name_ja in alt_names):
             return True
 
+        name = self.name_ja
+
         # try some alternates
         for prefix in IGNORED_LINE_PREFIXES:
             lp = len(prefix)
             if v.startswith(prefix) and v[lp:] == self.name_ja:
                 return True
-            if self.name_ja.startswith(prefix) and v == self.name_ja[lp:]:
-                return True
+            if name.startswith(prefix):
+                name = name[lp:]
+                if v == name:
+                    return True
 
         for suffix in IGNORED_LINE_SUFFIXES:
             ls = -len(suffix)
-            if v.endswith(suffix) and v[:ls] == self.name_ja:
-                return True
-            if self.name_ja.endswith(suffix) and v == self.name_ja[:ls]:
+            # if v.endswith(suffix) and v[:ls] == self.name_ja:
+            #     return True
+            if name.endswith(suffix) and v == name[:ls]:
                 return True
 
         # no match
@@ -408,6 +509,10 @@ def read_osmdata(
             if any(word in all_names for word in IGNORED_WORDS):
                 # bad word, skip record
                 continue
+            if any(word in (company_name, line_name, station_name)
+                   for word in IGNORED_WORDS_EXACT):
+                # bad word
+                continue
 
             # TODO: implement other things, this is Yamanote
             # if '山手' not in line_name:
@@ -444,12 +549,18 @@ def read_osmdata(
                              if s.name_ja == station_name]
 
             if not stations:
+
                 print(f'company: {company_name}, line: {line_name}, station: {station_name}')
+                print(f'area/line/station: '
+                      f'{row["area_code"]},{row["line_code"]},'
+                      f'{row["station_code"]}')
+                continue  # FIXME
+
                 for rm in rms:
                     print(f'  route_master #{rm.osm_id}: {rm.name_en} '
                           f'({rm.name_ja})')
                     print(str(rm))
-                raise ValueError('station not found')
+                raise ValueError(f'station not found {station_name}')
 
             # Pick the first station
             stations.sort(key=lambda s: s.osm_id)
