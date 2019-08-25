@@ -1,10 +1,12 @@
 # osm
 
-Example:
+OSM extracts can be built with [Overpass Turbo][].
 
-* Yamanote line (inner): https://www.openstreetmap.org/relation/1972960
-* Yamanote line (outer): https://www.openstreetmap.org/relation/1972920
-* Yamanote line (parent relation): https://www.openstreetmap.org/relation/1139468
+Queries can also be sent to `https://overpass-api.de/api/interpreter?data=`.
+
+## Main query
+
+Note: This returns about 8 MiB of data, and takes a couple of minutes to run.
 
 ```
 // Setup a boundary for Japan
@@ -44,3 +46,15 @@ area["ISO3166-1"="JP"][admin_level=2][boundary=administrative]->.jp;
 out;
 ```
 
+## Example relations
+
+* JR East
+  * Yamanote line (loop)
+    * inner track: https://www.openstreetmap.org/relation/1972960
+    * outer track: https://www.openstreetmap.org/relation/1972920
+    * parent relation: https://www.openstreetmap.org/relation/1139468
+    * Harajuku station: https://www.openstreetmap.org/node/1579675430
+
+
+
+[overpass turbo]: https://overpass-turbo.eu/
