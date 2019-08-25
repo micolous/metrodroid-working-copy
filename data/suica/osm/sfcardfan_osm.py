@@ -38,15 +38,45 @@ LINE = '線'
 
 RAILWAY = '鉄道'
 RAILWAY_LINE = '鉄道線'
+RAPID_LINE = '線快速'
 
-# This line crosses most of Japan, and is a term used from pre-Shinkansen days.
-TOKAIDO_MAIN_LINE = '東海道本線'
 
-# This line crosses much of eastern Japan (570km)
-TOHOKU_MAIN_LINE = '東北本線'
+ALT_NAMES = {
+    '東海道本線': [  # Tokaido Main Line
+        'JR東北本線',        # JR Tohoku Main Line
+        'JR京浜東北線',      # JR Keihin-Tohoku Line
+        'JR湘南新宿ライン',  # JR Shonan-Shinjuku Line
+    ]
+}
 
 # Characters that aren't important for testing
 JUNK_CHARS = '・'
+
+IGNORED_LINE_PREFIXES = (
+    'JR',)
+
+IGNORED_LINE_SUFFIXES = (
+    MAIN_LINE,
+    RAPID_LINE,
+    RAILWAY_LINE,
+    RAILWAY,
+    HON,
+    LINE,
+)
+
+# If a SFCardFan record contains one of these words, then ignore it
+IGNORED_WORDS = (
+    '試験',  # test
+
+    # TODO: missing data in OSM:
+    '天竜川',  # Tenryugawa
+    '新居町',  # Araimachi
+    '西小坂井',  # Nishi-Kozakai
+    '幸田',    # Koda
+    '名古屋',  # Nagoya
+    '清洲',    # Kiyosu
+    '岐阜',    # Gifu
+)
 
 
 def clean_sf_station(i: Text) -> Text:
@@ -118,6 +148,7 @@ class OsmNode:
 class OsmRelation:
     osm_id: int
     route_master: bool
+    route: bool
     name_en: Text
     name_ja: Text
     stop_ids: Set[int]
@@ -134,6 +165,7 @@ class OsmRelation:
         return cls(
             osm_id=int(elem.get('id')),
             route_master=get_osm_tag(elem, 'type') == 'route_master',
+            route=get_osm_tag(elem, 'type') == 'route',
             name_en=get_osm_tag(elem, 'name:en'),
             name_ja=get_osm_tag(elem, 'name:ja') or get_osm_tag(elem, 'name'),
             operator_en=get_osm_tag(elem, 'operator:en'),
@@ -148,21 +180,6 @@ class OsmRelation:
             wikidata=get_osm_tag(elem, 'wikidata'),
             db=db,
         )
-
-    def _lookup_stops(
-        self, stop_ids: Iterator[int]) -> Iterator[Union[OsmNode, int]]:
-        for stop_id in stop_ids:
-            stop = self.db.nodes.get(stop_id)
-            yield stop or stop_id
-
-    @property
-    def stops(self) -> Iterator[Union[OsmNode, int]]:
-        """
-        Iterates over stops, looking them up in db.
-
-        If the stop id could not be found, returns int.
-        """
-        return self._lookup_stops(self.stop_ids)
 
     def all_stop_ids(self, _current_depth: int = 0) -> Set[int]:
         """Recursively fetch all stop IDs under this relation."""
@@ -179,9 +196,53 @@ class OsmRelation:
 
         return stops
 
-    def all_stops(self) -> Iterator[Union[OsmNode, int]]:
+    def _lookup_stops(self, stop_ids: Iterator[int]) -> Iterator[OsmNode]:
+        """Looks up stops, skipping any unknown stops."""
+        for stop_id in stop_ids:
+            stop = self.db.nodes.get(stop_id)
+            if stop:
+                yield stop
+
+    @property
+    def stops(self) -> Iterator[OsmNode]:
+        """
+        Iterates over stops, looking them up in db.
+
+        If the stop id could not be found, returns int.
+        """
+        return self._lookup_stops(self.stop_ids)
+
+    def all_stops(self) -> Iterator[OsmNode]:
         """Recursively fetch all stop IDs under this relation."""
         return self._lookup_stops(self.all_stop_ids())
+
+    def name_matches(self, v: Text) -> bool:
+        if v == self.name_ja:
+            return True
+
+        # These are sometimes swapped
+        alt_names = ALT_NAMES.get(v)
+        if alt_names and (self.name_ja in alt_names):
+            return True
+
+        # try some alternates
+        for prefix in IGNORED_LINE_PREFIXES:
+            lp = len(prefix)
+            if v.startswith(prefix) and v[lp:] == self.name_ja:
+                return True
+            if self.name_ja.startswith(prefix) and v == self.name_ja[lp:]:
+                return True
+
+        for suffix in IGNORED_LINE_SUFFIXES:
+            ls = -len(suffix)
+            if v.endswith(suffix) and v[:ls] == self.name_ja:
+                return True
+            if self.name_ja.endswith(suffix) and v == self.name_ja[:ls]:
+                return True
+
+        # no match
+        return False
+
 
     @property
     def relations(self) -> Iterator[Union[OsmRelation, int]]:
@@ -253,9 +314,11 @@ class OsmDatabase:
         tree = ET.parse(fn)
         return cls.from_xml(tree.getroot())
 
-    @property
     def route_masters(self) -> Iterator[OsmRelation]:
         return filter(lambda r: r.route_master, self.relations.values())
+
+    def routes(self) -> Iterator[OsmRelation]:
+        return filter(lambda r: r.route, self.relations.values())
 
     def __repr__(self):
         return '<OsmDatabase>'
@@ -327,7 +390,7 @@ def read_osmdata(
 
         last_company = None
         last_line = None
-        last_rm = None
+        last_rms = None
         last_operator_info = None
 
         for row in sfcard_db:
@@ -340,47 +403,67 @@ def read_osmdata(
             line_name = clean_sf_line(row['line_name'])
             station_name = clean_sf_station(row['station_name'])
 
-            # TODO: implement other things, this is Yamanote
-            if '山手' not in line_name:
+            all_names = ' '.join([company_name, line_name, station_name])
+
+            if any(word in all_names for word in IGNORED_WORDS):
+                # bad word, skip record
                 continue
 
+            # TODO: implement other things, this is Yamanote
+            # if '山手' not in line_name:
+            #     continue
+
             if last_company == company_name and last_line == line_name:
-                rm = last_rm
+                rms = last_rms
                 operator_info = last_operator_info
             else:
                 # Find the route_master
-                rms = [m for m in osm_db.route_masters if m.name_ja == line_name]
+                rms = [m for m in osm_db.route_masters()
+                       if m.name_matches(line_name)] + [
+                    m for m in osm_db.routes()
+                    if m.name_matches(line_name)]
 
-                if len(rms) != 1:
+                if not rms:
                     print(f'company: {company_name}, line: {line_name}, station: {station_name}')
-                    raise ValueError(f'Expected 1 route_master, got {len(rms)}')
+                    print(f'area/line/station: '
+                          f'{row["area_code"]},{row["line_code"]},'
+                          f'{row["station_code"]}')
 
-                rm = last_rm = rms[0]
+                    raise ValueError(f'no route_master found')
+
+                last_rms = rms
                 last_company = company_name
                 last_line = line_name
-                operator_info = operators_db.get_operator(company_name)
-
-                if not operator_info:
-                    operator_info = OperatorInfo(
-                        name_en=rm.operator_en,
-                        name_ja=rm.operator_ja or company_name)
-
-                last_operator_info = operator_info
+                operator_info = last_operator_info = operators_db.get_operator(
+                    company_name)
 
             # Now look for the station in this route_master
-            stations = [s for s in rm.all_stops() if s.name_ja == station_name]
+            stations = []
+            for rm in rms:
+                stations += [s for s in rm.all_stops()
+                             if s.name_ja == station_name]
 
             if not stations:
                 print(f'company: {company_name}, line: {line_name}, station: {station_name}')
-                print(f'  route_master #{rm.osm_id}: {rm.name_en} '
-                      f'({rm.name_ja})')
+                for rm in rms:
+                    print(f'  route_master #{rm.osm_id}: {rm.name_en} '
+                          f'({rm.name_ja})')
+                    print(str(rm))
                 raise ValueError('station not found')
 
             # Pick the first station
             stations.sort(key=lambda s: s.osm_id)
             station = stations[0]
 
-            # now dump all details
+            # pick the correct route_master
+            rm = [r for r in rms if station.osm_id in r.all_stop_ids()][0]
+            if not operator_info:
+                operator_info = last_operator_info = OperatorInfo(
+                    name_en=rm.operator_en,
+                    name_ja=rm.operator_ja or company_name)
+
+
+        # now dump all details
             print(f'area_code: {row["area_code"]}, '
                   f'line_code: {row["line_code"]}, '
                   f'station_code: {row["station_code"]}')
@@ -399,7 +482,7 @@ def read_osmdata(
 
 
 
-    for route_master in osm_db.route_masters:
+    for route_master in osm_db.route_masters():
         print(route_master)
 
 
