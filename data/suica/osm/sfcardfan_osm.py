@@ -45,12 +45,17 @@ TOKAIDO_MAIN_LINE = '東海道本線'
 # This line crosses much of eastern Japan (570km)
 TOHOKU_MAIN_LINE = '東北本線'
 
+# Characters that aren't important for testing
+JUNK_CHARS = '・'
+
 
 def clean_sf_station(i: Text) -> Text:
     """Cleans up a SFCardFan station name to make it consistent."""
     if i.endswith(STATION):
+        # If it ends with "station", remove the suffix
         i = i[:-len(STATION)]
     elif i.endswith(INSIDE_STATION):
+        # If it ends with "inside station", remove the suffix
         i = i[:-len(INSIDE_STATION)]
 
     return i
@@ -59,10 +64,15 @@ def clean_sf_station(i: Text) -> Text:
 def clean_sf_line(i: Text) -> Text:
     """Cleans up a SFCardFan line name to make it consistent."""
     if i.endswith(HON):
+        # If it ends with "hon", replace with "hon sen"
         i = i[:-len(HON)] + MAIN_LINE
-
     if not i.endswith(LINE):
+        # TODO: can probably replace previous thing with this.
         i += LINE
+
+    for c in JUNK_CHARS:
+        if c in i:
+            i = i.replace(c, '')
 
     return i
 
@@ -81,6 +91,7 @@ class OsmNode:
     lon: Decimal
     name_en: Text
     name_ja: Text
+    wikidata: Optional[Text]
 
     db: Optional[OsmDatabase] = None
 
@@ -92,22 +103,29 @@ class OsmNode:
             lon=Decimal(elem.get('lon')),
             name_en=get_osm_tag(elem, 'name:en'),
             name_ja=get_osm_tag(elem, 'name:ja') or get_osm_tag(elem, 'name'),
+            wikidata=get_osm_tag(elem, 'wikidata'),
             db=db,
         )
 
     def __str__(self):
-        return f'Stop #{self.osm_id}: {self.name_en} ({self.name_ja})'
+        return f'Node #{self.osm_id}: {self.name_en} ({self.name_ja})'
 
+    def __repr__(self):
+        return (f'<OsmNode: #{self.osm_id}, en={self.name_en}, '
+                f'ja={self.name_ja}>')
 
 @dataclass
 class OsmRelation:
     osm_id: int
-    train_route: bool
     route_master: bool
     name_en: Text
     name_ja: Text
     stop_ids: Set[int]
     relation_ids: Set[int]
+    wikidata: Optional[Text]
+
+    operator_en: Optional[Text]
+    operator_ja: Optional[Text]
 
     db: Optional[OsmDatabase] = None
 
@@ -115,16 +133,19 @@ class OsmRelation:
     def from_xml(cls, elem, db: Optional[OsmDatabase] = None):
         return cls(
             osm_id=int(elem.get('id')),
-            train_route=get_osm_tag(elem, 'route') == 'train',
-            route_master=get_osm_tag(elem, 'route_master') == 'train',
+            route_master=get_osm_tag(elem, 'type') == 'route_master',
             name_en=get_osm_tag(elem, 'name:en'),
             name_ja=get_osm_tag(elem, 'name:ja') or get_osm_tag(elem, 'name'),
+            operator_en=get_osm_tag(elem, 'operator:en'),
+            operator_ja=(get_osm_tag(elem, 'operator:ja') or
+                         get_osm_tag(elem, 'operator')),
             stop_ids=frozenset(
                 int(e.attrib['ref'])
                 for e in elem.iterfind('.//member[@type=\'node\']')),
             relation_ids=frozenset(
                 int(e.attrib['ref'])
                 for e in elem.iterfind('.//member[@type=\'relation\']')),
+            wikidata=get_osm_tag(elem, 'wikidata'),
             db=db,
         )
 
@@ -178,8 +199,6 @@ class OsmRelation:
 
         if self.route_master:
             o += 'Route master\n'
-        if self.train_route:
-            o += 'Train route\n'
 
         for r in self.relations:
             if isinstance(r, int):
@@ -238,16 +257,78 @@ class OsmDatabase:
     def route_masters(self) -> Iterator[OsmRelation]:
         return filter(lambda r: r.route_master, self.relations.values())
 
-    def __str__(self):
+    def __repr__(self):
         return '<OsmDatabase>'
 
-def read_osmdata(osm_xml_fn: Text, sfcard_csv_fn: Text):
+
+@dataclass
+class OperatorInfo:
+    name_en: Text
+    name_ja: Text
+
+    long_name_en: Optional[Text] = None
+    long_name_ja: Optional[Text] = None
+
+    alt_names: Set[Text] = field(default_factory=frozenset)
+
+    @classmethod
+    def read_row(cls, row: Dict[Text, Text]):
+        alt_names = row['alt_names'] or ''
+        return cls(
+            name_en=row['name_en'],
+            name_ja=row['name_ja'],
+            long_name_en=row['long_name_en'],
+            long_name_ja=row['long_name_ja'],
+            alt_names=frozenset(n.strip() for n in alt_names.split('|')),
+        )
+
+    @property
+    def all_names(self) -> Set[Text]:
+        """Returns all of the names of this operator."""
+        s = set([self.name_en, self.name_ja])
+        s |= self.alt_names
+
+        if self.long_name_en is not None:
+            s.add(self.long_name_en)
+        if self.long_name_ja is not None:
+            s.add(self.long_name_ja)
+
+        return s
+
+
+class Operators:
+    """Database of all OperatorInfo"""
+
+    def __init__(self, fh):
+        c = DictReader(fh)
+        self._operators = [OperatorInfo.read_row(row) for row in c]
+
+        # Build lookup table
+        self._name_dict = {}  # type: Dict[Text, OperatorInfo]
+        for operator in self._operators:
+            for name in operator.all_names:
+                self._name_dict[name] = operator
+
+    def get_operator(self, name: Text) -> Optional[OperatorInfo]:
+        return self._name_dict.get(name)
+
+
+def read_osmdata(
+    osm_xml_fn: Text, sfcard_csv_fn: Text, operators_csv_fn: Text):
+
+    with open(operators_csv_fn, newline='') as operators_csv:
+        operators_db = Operators(operators_csv)
 
     osm_db = OsmDatabase.read_file(osm_xml_fn)
 
 
     with open(sfcard_csv_fn, newline='') as sfcard_csv:
         sfcard_db = DictReader(sfcard_csv)
+
+        last_company = None
+        last_line = None
+        last_rm = None
+        last_operator_info = None
 
         for row in sfcard_db:
             if row['src'] != 'suica_rail':
@@ -263,8 +344,53 @@ def read_osmdata(osm_xml_fn: Text, sfcard_csv_fn: Text):
             if '山手' not in line_name:
                 continue
 
-            print(f'company: {company_name}, line: {line_name}, station: {station_name}')
+            if last_company == company_name and last_line == line_name:
+                rm = last_rm
+                operator_info = last_operator_info
+            else:
+                # Find the route_master
+                rms = [m for m in osm_db.route_masters if m.name_ja == line_name]
 
+                if len(rms) != 1:
+                    print(f'company: {company_name}, line: {line_name}, station: {station_name}')
+                    raise ValueError(f'Expected 1 route_master, got {len(rms)}')
+
+                rm = last_rm = rms[0]
+                last_company = company_name
+                last_line = line_name
+                operator_info = operators_db.get_operator(company_name)
+
+                if not operator_info:
+                    operator_info = OperatorInfo(
+                        name_en=rm.operator_en,
+                        name_ja=rm.operator_ja or company_name)
+
+                last_operator_info = operator_info
+
+            # Now look for the station in this route_master
+            stations = [s for s in rm.all_stops() if s.name_ja == station_name]
+
+            if not stations:
+                print(f'company: {company_name}, line: {line_name}, station: {station_name}')
+                print(f'  route_master #{rm.osm_id}: {rm.name_en} '
+                      f'({rm.name_ja})')
+                raise ValueError('station not found')
+
+            # Pick the first station
+            stations.sort(key=lambda s: s.osm_id)
+            station = stations[0]
+
+            # now dump all details
+            print(f'area_code: {row["area_code"]}, '
+                  f'line_code: {row["line_code"]}, '
+                  f'station_code: {row["station_code"]}')
+            print(f'  rmaster#{rm.osm_id}: {rm.name_en} ({rm.name_ja})')
+            print(f'  operator: {operator_info.name_en} '
+                  f'({operator_info.name_ja})')
+            print(f'  station#{station.osm_id}: {station.name_en}'
+                  f' ({station.name_ja})')
+
+            print(f'  {station.lat}, {station.lon}')
 
 
     # Now do matching?
@@ -285,9 +411,10 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('-x', '--osm_xml', required=True)
     parser.add_argument('-s', '--sfcardfan_csv', required=True)
+    parser.add_argument('-O', '--operators_csv', required=True)
     options = parser.parse_args()
 
-    read_osmdata(options.osm_xml, options.sfcardfan_csv)
+    read_osmdata(options.osm_xml, options.sfcardfan_csv, options.operators_csv)
 
 
 if __name__ == '__main__':

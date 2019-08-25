@@ -27,9 +27,15 @@ area["ISO3166-1"="JP"][admin_level=2][boundary=administrative]->.jp;
   rel[route=subway]["name"]["name:en"](area.jp);
 ) -> .routes;
 
-// Also select parent route_masters
+// Parent route_masters
 (
-  rel(br.routes)[route_master];
+  rel(br.routes)[type=route_master];
+  rel.routes;
+) -> .routes;
+
+// Parent networks
+(
+  rel(br.routes)[type=network];
   rel.routes;
 ) -> .routes;
 
@@ -56,18 +62,16 @@ out;
 
 ## Example relations
 
-* JR East
-  * Yamanote line (loop)
+* JR East suburban: https://www.openstreetmap.org/relation/9554065
+  * Yamanote line (railway): https://www.openstreetmap.org/relation/1139468
     * inner track: https://www.openstreetmap.org/relation/1972960
     * outer track: https://www.openstreetmap.org/relation/1972920
-    * parent relation: https://www.openstreetmap.org/relation/1139468
     * Harajuku station: https://www.openstreetmap.org/node/1579675430
 
 * Kobe Municipal Transportation Bureau
-  * Seishin-Yamate line (subway)
+  * Seishin-Yamate line (subway): https://www.openstreetmap.org/relation/7720729
     * westbound: https://www.openstreetmap.org/relation/7720727
     * eastbound: https://www.openstreetmap.org/relation/7720717
-    * parent relation: https://www.openstreetmap.org/relation/7720729
 
 
 [overpass turbo]: https://overpass-turbo.eu/
