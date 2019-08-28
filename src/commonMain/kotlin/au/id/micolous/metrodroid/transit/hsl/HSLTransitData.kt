@@ -129,6 +129,7 @@ class HSLTransitData(override val serialNumber: String?,
                 name = CARD_NAME_HSL,
                 locationId = R.string.location_helsinki_finland,
                 resourceExtraNote = R.string.hsl_extra_note,
+                region = TransitRegion.FINLAND,
                 cardType = CardType.MifareDesfire)
         private val WALTTI_CARD_INFO = CardInfo(
                 imageId = R.drawable.waltti_logo,
