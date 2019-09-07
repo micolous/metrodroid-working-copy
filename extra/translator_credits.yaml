@@ -1,3 +1,38 @@
+# -*- mode: yaml; indent-tabs-mode: nil; tab-width: 2 -*-
+# This file contains all the "hacks" to Metrodroid's translator data.
+#
+# Users who don't appear in this list still get translator credits -- but only
+# by name.
+#
+# Each entry is as follows:
+#
+# match:   an array of "user hashes" to match on. Partial SHA1 hash of the email
+#          address, and some other junk from git -- this makes the data largely
+#          distinct, and also not exposing a list of harvestable email
+#          addresses.
+#
+#          Run ./translator_credits.py to see what the missing hashes are. You
+#          get output like this:
+#
+#          No preference found for Example Name (123123abc9)
+#
+# github:  The translator's GitHub username.
+#
+# handle:  If set to True, this shows the translator's GitHub username, rather
+#          than the `git.name` on their commits.
+#
+# only:    an array of languages to accept credit for.
+#          If not specified, then credits for every language in `git blame`.
+#          If set to an empty array, then disables all credits for the user.
+#
+#          This is useful for 2 cases:
+#
+#          1. Metrodroid core developers who have refactored `strings.xml` for
+#             a language they don't speak.
+#
+#          2. People who have clicked "add language" in Weblate but haven't
+#             filled in any strings.
+
 translator_credits:
   # Exclude myself from translator credits -- because I don't really translate
   # things.
