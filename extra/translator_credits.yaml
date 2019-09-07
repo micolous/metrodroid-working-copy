@@ -1,0 +1,86 @@
+translator_credits:
+  # Exclude myself from translator credits -- because I don't really translate
+  # things.
+  - match: [152054112c, ae4ada3d40]
+    only: []
+    github: micolous
+
+  # Opened Weblate, but translated no strings.
+  # Remove this if translated strings are added.
+  - match:
+    - 6f0d457102 # Ettore (de)
+    - ddb4631b2f # Thanos (el)
+    only: []
+
+  - match: [ed00e6ff7c]
+    github: comradekingu
+
+  - match: [8049f7544e]
+    github: petterreinholdtsen
+
+  - match: [eddc3930aa, faa0b91c36]
+    only: [de, el, fr, it, ru]
+    github: phcoder
+
+  - match: [9b77e59579]
+    github: sybond
+
+  - match: [7de069f57b]
+    github: omersiar
+
+  - match: [44f8bef196]
+    github: Albirew
+
+  - match: [76616d5934]
+    github: codebutler
+    only: [ja]
+
+  - match: [a717edc9cc]
+    github: NokisDemox
+    handle: True
+
+  - match: [d08ce2cc7b]
+    github: steets250
+
+  - match: [a63b7d5739]
+    github: naofum
+
+  - match: [31be51edb9]
+    github: akcansoft
+
+  - match: [475da76ec7]
+    github: oktay454
+
+  - match: [cff7827784]
+    github: Vistaus
+
+  - match: [57fda1c9a5]
+    github: mozillakab
+
+  - match: [3097c9c3ce]
+    github: aqvayli
+
+  - match: [6b3aab991a]
+    github: NokisDemox
+
+  - match: [186334e738]
+    github: Mauro-Fuentes
+
+  - match: [3f8b4862bd]
+    github: airon90
+
+  - match: [7053a225d0]
+    github: louies0623
+
+  - match: [f308f792cd]
+    github: lizzyd710
+
+  - match: [94db7aadcf]
+    github: LariOesch
+
+  - match: [ed42de24b4]
+    github: landler
+
+  - match: [d7155ae4d8]
+    github: NathanBnm
+    handle: True
