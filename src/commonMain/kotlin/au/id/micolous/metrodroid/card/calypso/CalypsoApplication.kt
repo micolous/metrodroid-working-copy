@@ -99,6 +99,7 @@ data class CalypsoApplication (
             if (f.check(tenv))
                 return f.parseTransitData(this)
         }
+        Log.d(TAG, "Unhandled Calypso environment: ${tenv.toHexString()}")
         return null
     }
 

@@ -52,6 +52,7 @@ class IntercodeTransitData (val capsule: Calypso1545TransitDataCapsule) : Calyps
     override val lookup get() = getLookup(networkId)
 
     companion object {
+        // ISO 3166-1 numeric ID 250 = France
         private const val COUNTRY_ID_FRANCE = 0x250
 
         // NOTE: Many French smart-cards don't have a brand name, and are simply referred to as a "titre

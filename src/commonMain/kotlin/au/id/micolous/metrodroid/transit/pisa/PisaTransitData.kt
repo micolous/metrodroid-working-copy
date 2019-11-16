@@ -76,6 +76,7 @@ data class PisaTransitData(val calypso: Calypso1545TransitDataCapsule) : Calypso
             return envRecord.readASCII()
         }
 
+        // ISO 3166-1 numeric ID 380 = Italy
         const val PISA_NETWORK_ID = 0x380100
         val FACTORY: CalypsoCardTransitFactory = object : CalypsoCardTransitFactory {
             override val allCards get() = listOf(CARD_INFO)
