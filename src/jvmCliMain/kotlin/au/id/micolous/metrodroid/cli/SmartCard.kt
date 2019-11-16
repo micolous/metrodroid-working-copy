@@ -95,7 +95,7 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
         exists = true, fileOkay = false, folderOkay = true, readable = true)
 
     private val keyReader: CardKeysRetriever
-        = classicKeys?.let { JavaKeysFromFolder(it) } ?: CardKeysDummy()
+        get() = classicKeys?.let { JavaKeysFromFolder(it) } ?: CardKeysDummy()
 
     override fun run() {
         val o = Object()

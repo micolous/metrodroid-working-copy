@@ -29,7 +29,7 @@ class JavaFolderReader(private val folder: File) : CardKeysFileReader {
         = File(folder, fileName).readText()
 
     override fun listFiles(dir: String)
-        = folder.listFiles { _, it ->
+        = File(folder, dir).listFiles { _, it ->
         it.endsWith(".json")  }!!.map { it.name }
 
 }
