@@ -19,9 +19,11 @@
 package au.id.micolous.metrodroid.cli
 
 import au.id.micolous.metrodroid.card.*
+import au.id.micolous.metrodroid.card.classic.ClassicReader
 import au.id.micolous.metrodroid.card.desfire.DesfireCardReader
 import au.id.micolous.metrodroid.card.felica.FelicaReader
 import au.id.micolous.metrodroid.card.iso7816.ISO7816Card
+import au.id.micolous.metrodroid.key.*
 import au.id.micolous.metrodroid.printCard
 import au.id.micolous.metrodroid.serializers.JsonKotlinFormat
 import au.id.micolous.metrodroid.time.TimestampFull
@@ -87,6 +89,13 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
                 "parent must be a directory that exists: $it" }
         }
     }
+
+    private val classicKeys: File? by option("-k", "--keys-dir",
+        help="Directory containing MIFARE Classic keys in JSON format.").file(
+        exists = true, fileOkay = false, folderOkay = true, readable = true)
+
+    private val keyReader: CardKeysRetriever
+        = classicKeys?.let { JavaKeysFromFolder(it) } ?: CardKeysDummy()
 
     override fun run() {
         val o = Object()
@@ -203,6 +212,12 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
                     val t = JavaFeliCaTransceiver.wrap(it)
                     val f = FelicaReader.dumpTag(t, feedbackInterface, onlyFirst = felicaOnlyFirst)
                     return Card(tagId = tagId, scannedAt = scannedAt, felica = f)
+                }
+
+                CardType.MifareClassic -> {
+                    val t = JavaClassicTransceiver.wrap(it)
+                    val c = ClassicReader.readCard(keyReader, t, feedbackInterface)
+                    return Card(tagId = tagId, scannedAt = scannedAt, mifareClassic = c)
                 }
 
                 else -> throw Exception("Unhandled card type ${it.cardType}")
