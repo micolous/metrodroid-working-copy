@@ -252,7 +252,7 @@ kotlin {
             compilations.all {
                 tasks[compileKotlinTaskName].dependsOn += generateLocalize
                 kotlinOptions {
-                    jvmTarget = "9"
+                    jvmTarget = "1.8"
                 }
             }
         }
