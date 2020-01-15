@@ -39,8 +39,7 @@ import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Paths
-import java.util.*
-
+import java.util.Locale
 
 /**
  * Ignore certain CCID readers
@@ -84,6 +83,7 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
             "--wait-for-card requires --reader is also set."
         }
     }
+    private val acr123: Boolean by option("--acr123").flag(default=false)
 
     private val outFile: File? by option("-o", "--output", metavar = "FILE_OR_DIR",
         help="Specify a path that does not exist to create a new file with this name. " +
@@ -99,8 +99,15 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
     }
 
     override fun run() {
-        val o = Object()
         val context = Context.establish()
+
+        val acr123 = if (acr123) {
+            Acr123.connect(context).apply {
+                clearScreen()
+                writeText("Hello world!")
+            }
+        } else { null }
+
         val allTerminals = context.getAllReaderStatus()
         val outFile : File? = outFile
 
@@ -145,12 +152,22 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
             }
 
             println("Waiting for card insertion...")
+            acr123?.apply {
+                clearScreen()
+                writeText("Metrodroid", x=3, y=0)
+                writeText("Waiting for card", y=2)
+            }
             do {
                 terminal = runBlocking{
                     context.getStatusChange(au.id.micolous.kotlin.pcsc.LONG_TIMEOUT,
                         listOf(terminal!!.update())).first()
                 }
             } while (!terminal!!.eventState.present)
+        }
+
+        acr123?.apply {
+            clearScreen()
+            writeText("Reading...")
         }
 
         val card = runBlocking { dumpTag(context, terminal.reader) }
@@ -172,6 +189,27 @@ class SmartCard: CliktCommand(help="Communicates with a card using the PC/SC API
         }
 
         if (!noParse) {
+            acr123?.apply {
+                clearScreen()
+                val td = try {
+                    card.parseTransitData()
+                } catch (e: Exception) {
+                    null
+                }
+
+                if (td != null) {
+                    writeText(td.cardName)
+                    writeText(td.serialNumber?.replace(" ", "") ?: "", y=1)
+                    writeText(td.balances?.firstOrNull()?.balance?.
+                        formatCurrencyString(true)?.unformatted ?: "balance unknown", y=2)
+
+                    val lastTrip = td.trips?.firstOrNull()
+                    if (lastTrip != null) {
+                        // writeText(lastTrip.mode.)
+                    }
+                }
+            }
+
             println("Card info:")
             printCard(card)
         }
