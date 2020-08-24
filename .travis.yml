@@ -1,15 +1,13 @@
-sudo: required
+os: linux
 dist: bionic
 language: java
-# Android pins asm-6.0 for desugar, which doesn't support Java 10
-# Travis' Bionic image doesn't support OpenJDK 8 (despite docs claiming so)
-jdk: openjdk9
+jdk: openjdk10
 
 env:
   global:
     # Android SDK tools package to use
-    - ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
-    - ANDROID_SDK_SHA256=92ffee5a1d98d856634e8b71132e8a95d96c83a63fde1099be3d86df3106def9
+    - ANDROID_SDK_URL=https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
+    - ANDROID_SDK_SHA256=89f308315e041c93a37a79e0627c47f21d5c5edbe5e80ea8dc0aac8a649e0e92
 
     # Android compile targets
     - ANDROID_API=29
@@ -20,21 +18,17 @@ env:
 
     # These are all constants -- you shouldn't need to update these.
     - ANDROID_SDK_ROOT=$HOME/android-sdk
+    - CMDLINE_TOOLS_ROOT=$ANDROID_SDK_ROOT/cmdline-tools
     - ADB=$ANDROID_SDK_ROOT/platform-tools/adb
-    - AVDMANAGER=$ANDROID_SDK_ROOT/tools/bin/avdmanager
-    - SDKMANAGER=$ANDROID_SDK_ROOT/tools/bin/sdkmanager
+    - AVDMANAGER=$CMDLINE_TOOLS_ROOT/tools/bin/avdmanager
+    - SDKMANAGER=$CMDLINE_TOOLS_ROOT/tools/bin/sdkmanager
     - EMULATOR=$ANDROID_SDK_ROOT/emulator/emulator
 
     # Pointless in CI.
     - QEMU_AUDIO_DRV=none
 
-    # Work around avdmanager and sdkmanager requiring Java EE components
-    # https://issuetracker.google.com/issues/67495440
-    - AVDMANAGER_OPTS="--add-modules java.se.ee"
-    - SDKMANAGER_OPTS="--add-modules java.se.ee"
-
     # Limit RAM usage. Travis has a 4GB limit, we tend to flake otherwise.
-    - JVM_OPTS="-Xms1536M -Xmx1536M -XX:MaxMetaspaceSize=768M -XX:+HeapDumpOnOutOfMemoryError"
+    # - JVM_OPTS="-Xms2048M -Xmx2048M -XX:MaxMetaspaceSize=1024M -XX:+HeapDumpOnOutOfMemoryError"
 
 jobs:
   include:
@@ -46,20 +40,20 @@ jobs:
     - stage: assemble and unit test
       env: TARGET=jvm
       script:
-        - ./gradlew :jvmcli:installShadowDist jvmCliTest --stacktrace
+        - ./gradlew :jvmcli:installShadowDist jvmCliTest -s
         - ./.travis/jvmcli_test.sh
     - env: TARGET=android
-      script: ./gradlew assembleDebug lintDebug testDebugUnitTest --stacktrace -PLINT_FATAL=1
+      script: ./gradlew assembleDebug lintDebug testDebugUnitTest --no-parallel --no-scan -s -PLINT_FATAL=1
     - env: TARGET=android
-      script: ./gradlew assembleDev lintDev testDevUnitTest --stacktrace -PLINT_FATAL=1
+      script: ./gradlew assembleDev lintDev testDevUnitTest --no-parallel --no-scan -s  -PLINT_FATAL=1
     - env: TARGET=android
-      script: ./gradlew assembleRelease lintRelease testReleaseUnitTest --stacktrace -PLINT_FATAL=1
+      script: ./gradlew assembleRelease lintRelease testReleaseUnitTest --no-parallel --no-scan -s -PLINT_FATAL=1
     # This runs a build where third_party/protobuf has been deleted because F-Droid
     # https://github.com/metrodroid/metrodroid/issues/640#issuecomment-574491810
     - env: TARGET=android
       script:
         - rm -rf ./third_party/protobuf
-        - ./gradlew assembleRelease lintRelease testReleaseUnitTest --stacktrace -PLINT_FATAL=1
+        - ./gradlew assembleRelease lintRelease testReleaseUnitTest -s -PLINT_FATAL=1
 
     # This runs the full test suite, including using the Android emulator.
     - stage: test
