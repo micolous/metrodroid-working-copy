@@ -21,7 +21,7 @@ buildscript {
         android_sdk_version = 29
         android_min_version = 16
         android_gradle_version = '3.5.0'
-        protobuf_version = '3.10.0-rc-1'
+        protobuf_version = '3.14.0'
         protobuf_gradle_version = '0.8.10'
     }
     repositories {
@@ -53,6 +53,7 @@ def relativeDrawableHdpiDir = "cardimages/android/drawable-hdpi"
 def drawableHdpiDir = new File(projectDir, relativeDrawableHdpiDir)
 def stringsXmlFile = new File(projectDir, "src/main/res/values/strings.xml")
 def cardAssetsDir = new File(projectDir, "native/metrodroid/metrodroid/Cards.xcassets")
+def protobufCFlags = "pkg-config libprotobuf-c --cflags".execute().text.trim().split()
 
 task generateLocalize {
     inputs.file stringsXmlFile
@@ -256,6 +257,25 @@ kotlin {
                 kotlinOptions {
                     jvmTarget = "9"
                 }
+            }
+        }
+        // TODO: support other systems
+        fromPreset(presets.macosX64, 'nativeCli') {
+            compilations.all {
+                tasks[compileKotlinTaskName].dependsOn += generateLocalize
+                cinterops {
+                    stations {
+                        defFile project.file("src/nativeCli/cinterop/stations.def")
+                        includeDirs (new File(project('proto').buildDir,
+                            'generated/source/proto/main/c'))
+                        compilerOpts.addAll(protobufCFlags)
+                    }
+                }
+            }
+
+            binaries.all {
+                linkerOpts new File(project('proto').buildDir,
+                    'libs/metroProtoC/static/libmetroProtoC.a').path
             }
         }
 

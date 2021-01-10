@@ -20,6 +20,7 @@ buildscript {
 apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'objective-c'
+apply plugin: 'c'
 
 compileJava {
      sourceCompatibility = JavaVersion.VERSION_1_8
@@ -44,6 +45,7 @@ protobuf {
             }
             task.plugins {
                 objc {}
+                c {}
             }
         }
     }
@@ -51,6 +53,9 @@ protobuf {
 
 final def iOSTarget = System.getenv('SDK_NAME')?.startsWith("iphoneos") \
                               ? "ios_arm64" : "ios_x86_64"
+
+final def protobufCFlags = "pkg-config libprotobuf-c --cflags".execute().text.trim().split()
+final def protobufLibs = "pkg-config libprotobuf-c --libs".execute().text.trim().split()
 
 model {
     toolChains {
@@ -95,15 +100,39 @@ model {
                 }
             }
         }
+        metroProtoC(NativeLibrarySpec) {
+            sources {
+                c {
+                    source {
+                        srcDirs new File(buildDir, 'generated/source/proto/main/c')
+                        include 'stations.pb-c.c'
+                    }
+                    exportedHeaders {
+                        srcDirs new File(buildDir, 'generated/source/proto/main/c')
+                        include 'stations.pb-c.h'
+                    }
+                }
+            }
+        }
     }
     binaries {
         withType(SharedLibraryBinarySpec) {
-            objcCompiler.args '-fno-objc-arc'
-            linker.args '-fno-objc-arc', '-framework', 'CoreServices', '-framework', 'Foundation'
+            if (targetPlatform.name.startsWith('ios')) {
+                objcCompiler.args '-fno-objc-arc'
+                linker.args '-fno-objc-arc', '-framework', 'CoreServices', '-framework', 'Foundation'
+            } else {
+                cCompiler.args.addAll(protobufCFlags)
+                linker.args.addAll(protobufLibs)
+            }
         }
         withType(StaticLibraryBinarySpec) {
-            objcCompiler.args '-fno-objc-arc'
-            linker.args '-fno-objc-arc', '-framework', 'CoreServices', '-framework', 'Foundation'
+            if (targetPlatform.name.startsWith('ios')) {
+                objcCompiler.args '-fno-objc-arc'
+                linker.args '-fno-objc-arc', '-framework', 'CoreServices', '-framework', 'Foundation'
+            } else {
+                cCompiler.args.addAll(protobufCFlags)
+                linker.args.addAll(protobufLibs)
+            }
         }
     }
 }

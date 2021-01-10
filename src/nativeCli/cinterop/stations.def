@@ -1,0 +1,4 @@
+headers = stations.pb-c.h
+package = au.id.micolous.metrodroid.proto.stations
+headerFilter = stations.pb-c.h
+language = C
