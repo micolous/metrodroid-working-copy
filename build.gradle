@@ -252,6 +252,7 @@ kotlin {
             compilations.all {
                 tasks[compileKotlinTaskName].dependsOn += generateLocalize
                 kotlinOptions {
+		    freeCompilerArgs = ["-Xjavac-arguments='--release=8'"]
                     jvmTarget = "1.8"
                 }
             }

@@ -47,7 +47,7 @@ repositories {
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
     kotlinOptions {
-        freeCompilerArgs = ["-Xjvm-default=enable"]
+        freeCompilerArgs = ["-Xjvm-default=enable", "-Xjavac-arguments='--release 8'"]
         jvmTarget = "1.8"
     }
 }

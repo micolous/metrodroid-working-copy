@@ -30,7 +30,7 @@ class Acr123(private val card: Card) {
 
     companion object {
         fun connect(context: Context) : Acr123 {
-            val reader = "ACS ACR123 3S Reader [ACR123U-PICC] (1.00.xx) 00 00" // "ACS ACR123 3S Reader(1)"
+            val reader = "ACS ACR123 3S Reader [ACR123U-PICC] (1.00.xx) 00 01" // "ACS ACR123 3S Reader(1)"
             return Acr123(context.connect(reader, ShareMode.Direct, Protocol.Raw))
         }
     }
